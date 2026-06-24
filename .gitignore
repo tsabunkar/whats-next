@@ -1,0 +1,30 @@
+# ── Go ──────────────────────────────────────────────────────────────────────
+backend/server
+backend/vendor/
+
+# ── Node ────────────────────────────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# ── Terraform ───────────────────────────────────────────────────────────────
+terraform/.terraform/
+terraform/terraform.tfstate*
+terraform/crash.log
+terraform/override.tf
+terraform/override.tf.json
+terraform/*.tfplan
+terraform/scripts/*.zip
+
+# ── Env / Secrets ───────────────────────────────────────────────────────────
+.env
+terraform.tfvars
+*.local
+
+# ── IDE / Editor ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
