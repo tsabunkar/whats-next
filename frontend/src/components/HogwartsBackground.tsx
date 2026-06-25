@@ -57,41 +57,41 @@ function NebulaClouds() {
       <motion.div
         className="absolute rounded-full"
         style={{
-          top: '15%',
-          left: '10%',
+          top: '12%',
+          left: '8%',
           width: '55%',
           height: '35%',
-          background: 'radial-gradient(ellipse, rgba(80, 40, 120, 0.25) 0%, transparent 70%)',
-          filter: 'blur(50px)',
-        }}
-        animate={{ opacity: [0.4, 0.8, 0.4], scale: [1, 1.05, 1] }}
-        transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        className="absolute rounded-full"
-        style={{
-          top: '50%',
-          right: '15%',
-          width: '45%',
-          height: '30%',
-          background: 'radial-gradient(ellipse, rgba(20, 60, 120, 0.2) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse, rgba(70, 35, 120, 0.15) 0%, transparent 70%)',
           filter: 'blur(60px)',
         }}
-        animate={{ opacity: [0.5, 0.9, 0.5], scale: [1, 1.08, 1] }}
-        transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
+        animate={{ opacity: [0.2, 0.4, 0.25, 0.3, 0.2] }}
+        transition={{ duration: 30, repeat: Infinity, ease: 'easeInOut' }}
       />
       <motion.div
         className="absolute rounded-full"
         style={{
-          top: '30%',
-          left: '45%',
-          width: '40%',
-          height: '25%',
-          background: 'radial-gradient(ellipse, rgba(60, 20, 80, 0.15) 0%, transparent 70%)',
+          top: '40%',
+          right: '12%',
+          width: '45%',
+          height: '30%',
+          background: 'radial-gradient(ellipse, rgba(15, 60, 120, 0.12) 0%, transparent 70%)',
           filter: 'blur(70px)',
         }}
-        animate={{ opacity: [0.3, 0.7, 0.3], scale: [1, 1.1, 1] }}
-        transition={{ duration: 25, repeat: Infinity, ease: 'easeInOut' }}
+        animate={{ opacity: [0.15, 0.35, 0.2, 0.25, 0.15] }}
+        transition={{ duration: 35, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.div
+        className="absolute rounded-full"
+        style={{
+          top: '20%',
+          left: '35%',
+          width: '40%',
+          height: '25%',
+          background: 'radial-gradient(ellipse, rgba(50, 20, 90, 0.1) 0%, transparent 70%)',
+          filter: 'blur(80px)',
+        }}
+        animate={{ opacity: [0.1, 0.3, 0.15, 0.2, 0.1] }}
+        transition={{ duration: 40, repeat: Infinity, ease: 'easeInOut' }}
       />
     </div>
   )
@@ -133,57 +133,56 @@ function DistantGalaxy() {
 
 function AuroraBeam({ index, total }: { index: number; total: number }) {
   const xPos = (index / total) * 100
-  const height = 15 + Math.random() * 25
-  const width = 30 + Math.random() * 60
-  const hue = 120 + Math.random() * 40
-  const isPurple = Math.random() > 0.6
+  const height = 30 + Math.random() * 30
+  const width = 120 + Math.random() * 160
+  const isGreen = Math.random() < 0.55
+  const isGreenPurple = Math.random() < 0.3
+
+  const driftSlow = -4 + Math.random() * 8
+  const driftSlower = -3 + Math.random() * 6
 
   return (
     <motion.div
       className="absolute"
       style={{
         left: `${xPos}%`,
-        top: `${5 + Math.random() * 8}%`,
+        top: `${1 + Math.random() * 6}%`,
         width: `${width}px`,
         height: `${height}%`,
         transformOrigin: '50% 0%',
+        marginLeft: `-${width / 2}px`,
       }}
       animate={{
-        x: [
-          0,
-          -5 + Math.random() * 10,
-          0,
-          5 - Math.random() * 10,
-          0,
-        ],
-        scaleX: [1, 0.7 + Math.random() * 0.6, 1, 0.6 + Math.random() * 0.8, 1],
-        scaleY: [1, 0.85 + Math.random() * 0.3, 1, 0.8 + Math.random() * 0.4, 1],
-        skewX: [0, -2 + Math.random() * 4, 0, 2 - Math.random() * 4, 0],
+        x: [0, driftSlow, driftSlower, -driftSlow, driftSlower, 0],
         opacity: [
-          0.3 + Math.random() * 0.3,
-          0.6 + Math.random() * 0.4,
-          0.2 + Math.random() * 0.3,
-          0.5 + Math.random() * 0.5,
-          0.3 + Math.random() * 0.3,
+          0.08 + Math.random() * 0.08,
+          0.15 + Math.random() * 0.1,
+          0.06 + Math.random() * 0.08,
+          0.12 + Math.random() * 0.1,
+          0.08 + Math.random() * 0.08,
         ],
       }}
       transition={{
-        duration: 6 + Math.random() * 8,
+        duration: 25 + Math.random() * 20,
         repeat: Infinity,
-        delay: Math.random() * 5,
+        delay: Math.random() * 10,
         ease: 'easeInOut',
       }}
     >
       <div
         className="w-full h-full rounded-full"
         style={{
-          background: isPurple
-            ? `linear-gradient(180deg, rgba(${120 + Math.random() * 40},0,${180 + Math.random() * 75},${0.06 + Math.random() * 0.06}) 0%, rgba(${150 + Math.random() * 40},0,${200 + Math.random() * 55},${0.03 + Math.random() * 0.04}) 40%, transparent 100%)`
-            : `linear-gradient(180deg, rgba(${60 + Math.random() * 40},${200 + Math.random() * 55},${80 + Math.random() * 40},${0.08 + Math.random() * 0.07}) 0%, rgba(${40 + Math.random() * 30},${150 + Math.random() * 50},${60 + Math.random() * 30},${0.04 + Math.random() * 0.05}) 40%, transparent 100%)`,
-          filter: `blur(${8 + Math.random() * 12}px)`,
-          boxShadow: isPurple
-            ? `0 0 ${20 + Math.random() * 30}px rgba(${150 + Math.random() * 40},0,${200 + Math.random() * 55},${0.05 + Math.random() * 0.05})`
-            : `0 0 ${20 + Math.random() * 30}px rgba(${60 + Math.random() * 40},${200 + Math.random() * 55},${80 + Math.random() * 40},${0.06 + Math.random() * 0.06})`,
+          background: isGreenPurple
+            ? `linear-gradient(180deg, rgba(60,180,100,0.08) 0%, rgba(140,40,200,0.06) 30%, rgba(80,30,140,0.04) 60%, transparent 100%)`
+            : isGreen
+              ? `linear-gradient(180deg, rgba(50,200,100,0.1) 0%, rgba(40,155,75,0.06) 40%, rgba(30,100,50,0.03) 70%, transparent 100%)`
+              : `linear-gradient(180deg, rgba(150,50,220,0.08) 0%, rgba(120,30,180,0.05) 40%, rgba(80,20,120,0.03) 70%, transparent 100%)`,
+          filter: `blur(${20 + Math.random() * 15}px)`,
+          boxShadow: isGreenPurple
+            ? `0 0 60px rgba(60,180,100,0.04), 0 0 120px rgba(140,40,200,0.03)`
+            : isGreen
+              ? `0 0 60px rgba(50,200,100,0.05)`
+              : `0 0 60px rgba(150,50,220,0.04)`,
         }}
       />
     </motion.div>
@@ -191,7 +190,7 @@ function AuroraBeam({ index, total }: { index: number; total: number }) {
 }
 
 function Aurora() {
-  const beamCount = 40
+  const beamCount = 18
   const beams = useMemo(
     () => Array.from({ length: beamCount }).map((_, i) => ({ id: i })),
     [],
@@ -199,56 +198,56 @@ function Aurora() {
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden">
-      {/* Ambient aurora glow - background layer */}
-      <motion.div
-        className="absolute"
-        style={{
-          top: '2%',
-          left: '-10%',
-          width: '120%',
-          height: '35%',
-          background: 'linear-gradient(180deg, rgba(60,200,120,0.025) 0%, rgba(40,150,80,0.015) 30%, transparent 100%)',
-          filter: 'blur(60px)',
-        }}
-        animate={{ opacity: [0.15, 0.35, 0.2, 0.3, 0.15] }}
-        transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
-      />
-
-      {/* Purple ambient layer */}
+      {/* Wide green aurora curtain - base glow */}
       <motion.div
         className="absolute"
         style={{
           top: '0%',
           left: '-5%',
           width: '110%',
-          height: '30%',
-          background: 'linear-gradient(180deg, rgba(120,40,180,0.015) 0%, transparent 100%)',
+          height: '45%',
+          background: 'linear-gradient(180deg, rgba(40,190,90,0.03) 0%, rgba(30,140,70,0.02) 25%, rgba(20,100,50,0.01) 50%, transparent 100%)',
           filter: 'blur(80px)',
         }}
-        animate={{ opacity: [0.1, 0.25, 0.15, 0.2, 0.1] }}
-        transition={{ duration: 16, repeat: Infinity, ease: 'easeInOut' }}
+        animate={{ opacity: [0.2, 0.35, 0.25, 0.3, 0.2] }}
+        transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
       />
 
-      {/* Individual dancing beams */}
+      {/* Purple aurora overlay */}
+      <motion.div
+        className="absolute"
+        style={{
+          top: '2%',
+          left: '15%',
+          width: '70%',
+          height: '35%',
+          background: 'linear-gradient(180deg, rgba(130,40,190,0.02) 0%, rgba(90,25,140,0.015) 30%, transparent 100%)',
+          filter: 'blur(90px)',
+        }}
+        animate={{ opacity: [0.1, 0.25, 0.15, 0.2, 0.1] }}
+        transition={{ duration: 25, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      {/* Individual flowing curtain beams */}
       <div className="absolute inset-0">
         {beams.map((b) => (
           <AuroraBeam key={b.id} index={b.id} total={beamCount} />
         ))}
       </div>
 
-      {/* Bottom glow reflection */}
+      {/* Soft lake reflection glow */}
       <motion.div
         className="absolute"
         style={{
           top: '28%',
           left: '-10%',
           width: '120%',
-          height: '10%',
-          background: 'linear-gradient(180deg, rgba(60,200,120,0.01) 0%, transparent 100%)',
-          filter: 'blur(50px)',
+          height: '20%',
+          background: 'linear-gradient(180deg, rgba(30,150,70,0.008) 0%, rgba(100,30,160,0.005) 40%, transparent 100%)',
+          filter: 'blur(70px)',
         }}
-        animate={{ opacity: [0.05, 0.15, 0.08, 0.12, 0.05] }}
-        transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+        animate={{ opacity: [0.04, 0.1, 0.06, 0.08, 0.04] }}
+        transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
       />
     </div>
   )
@@ -323,7 +322,7 @@ export default function HogwartsBackground() {
       <DistantGalaxy />
 
       {/* Stars */}
-      <Stars count={6} />
+      <Stars count={8} />
 
       {/* Cosmic dust */}
       <CosmicDust />

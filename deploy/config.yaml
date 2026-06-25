@@ -1,4 +1,0 @@
-apiVersion: whats-next.tsabunkar.dev/v1
-kind: DeploymentConfig
-spec:
-  tag: latest

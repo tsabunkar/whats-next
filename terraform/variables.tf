@@ -49,15 +49,4 @@ variable "docker_hub_webhook_secret" {
   default     = ""
 }
 
-variable "github_repo" {
-  description = "GitHub repository for GitOps deploy config"
-  type        = string
-  default     = "tsabunkar/whats-next"
-}
 
-variable "github_token" {
-  description = "GitHub personal access token for reading deploy config"
-  type        = string
-  sensitive   = true
-  default     = ""
-}

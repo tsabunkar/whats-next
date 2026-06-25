@@ -103,11 +103,6 @@ resource "aws_iam_policy" "sync" {
         Resource = "*"
       },
       {
-        Effect   = "Allow"
-        Action   = ["codebuild:StartBuild"]
-        Resource = [aws_codebuild_project.sync.arn]
-      },
-      {
         Effect = "Allow"
         Action = [
           "lambda:UpdateFunctionCode",

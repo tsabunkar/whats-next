@@ -19,24 +19,61 @@ A flash-card career-discovery quiz with 3D card transitions, growing tree progre
                               │              │ (sync)       │
                               │              └──────┬───────┘
                               │                     │
-                              │              CodeBuild
-                              │           (pull + push)
                               │                     │
                               ▼                     ▼
                         ┌──────────────────────────────┐
                         │        ECR Repository        │
                         └──────────────────────────────┘
+```
 
-  ┌──────────────────────────────────────────────────────────────┐
-  │  GitOps Reconciler (runs every 5 min via EventBridge)       │
-  │  Reads deploy/config.yaml → ensures Lambda matches the tag  │
-  └──────────────────────────────────────────────────────────────┘
+### Latest Deployment Strategy not directly from local to ECR rather dockerhub -> sync lambda -> ECR -> career-match lambda
+
+```
+                     ┌─────────────────────────┐
+                     │  Developer              │
+                     │  ./scripts/deploy-*.sh  │
+                     └────┬──────────┬─────────┘
+                          │          │
+               ┌──────────┘          └──────────┐
+               ▼                                  ▼
+     ┌─────────────────┐              ┌──────────────────────┐
+     │  Frontend       │              │  Backend             │
+     │  npm run build  │              │  docker build        │
+     │  dist/          │              │  docker push         │
+     └────────┬────────┘              │  → Docker Hub        │
+              │                       └──────────┬───────────┘
+              ▼                                  │ webhook
+     ┌─────────────────┐                         ▼
+     │  aws s3 sync    │              ┌──────────────────────┐
+     │  dist/ → S3     │              │  API Gateway        │
+     └────────┬────────┘              │  POST /webhook      │
+              │                       └──────────┬───────────┘
+              ▼                                  │
+     ┌─────────────────┐                         ▼
+     │  CloudFront     │              ┌──────────────────────┐
+     │  invalidation   │              │  Sync Lambda         │
+     │  /*             │              │                      │
+     └─────────────────┘              │  1. Auth with        │
+                                      │     Docker Hub       │
+                                      │  2. Download manifest│
+                                      │  3. Download layers  │
+                                      │  4. Upload to ECR    │
+                                      │  5. Push manifest    │
+                                      │  6. Update Lambda    │
+                                      └──────────┬───────────┘
+                                                 │
+                                     ┌───────────┴───────────┐
+                                     ▼                       ▼
+                           ┌─────────────────┐     ┌─────────────────┐
+                           │  ECR            │     │  Lambda (Go)    │
+                           │  Container      │────►│  API Gateway    │
+                           │  Image          │     │  Career Match   │
+                           └─────────────────┘     └─────────────────┘
 ```
 
 - **Frontend**: React SPA (Vite, TypeScript, Tailwind, framer-motion) — static files in S3 + CloudFront
 - **Backend**: Go binary in Docker → Lambda container (via ECR) — API Gateway HTTP API
 - **Sync**: Docker Hub webhook → API Gateway → Lambda → CodeBuild → ECR → Lambda deploy
-- **GitOps**: `deploy/config.yaml` is source of truth; reconciler converges within 5 min
 
 ## Prerequisites
 
@@ -66,7 +103,13 @@ terraform output frontend_cloudfront_id
 terraform output sync_webhook_url
 ```
 
-### 2. Docker Hub webhook
+### 2. Store secrets
+
+```bash
+./scripts/store-secrets.sh
+```
+
+### 3. Docker Hub webhook
 
 Configure a webhook in Docker Hub repository `tsabunkar/whats-next-backend` pointing to the `sync_webhook_url` output.
 
@@ -78,25 +121,17 @@ Configure a webhook in Docker Hub repository `tsabunkar/whats-next-backend` poin
 ./scripts/deploy-backend.sh v1.2.3
 ```
 
-This builds the Docker image, pushes to Docker Hub, updates `deploy/config.yaml`, and commits to Git. The Docker Hub webhook automatically triggers CodeBuild to sync the image to ECR and update the Lambda. The reconciler confirms convergence within 5 minutes.
+This builds the Docker image and pushes to Docker Hub. The Docker Hub webhook automatically triggers CodeBuild to sync the image to ECR and update the Lambda.
 
 ### Frontend
 
 ```bash
-VITE_API_URL=https://your-api-url.execute-api.us-east-1.amazonaws.com \
-  ./scripts/deploy-frontend.sh
+./scripts/deploy-frontend.sh <s3-bucket> <cf-dist-id>
 ```
-
-The script reads the S3 bucket and CloudFront distribution ID from Terraform outputs, builds the frontend, syncs to S3, and invalidates the CloudFront cache.
 
 ### Rollback
 
-```bash
-# Edit deploy/config.yaml, set tag to the previous version
-git add deploy/config.yaml && git commit -m "rollback to v1.2.2"
-git push
-# Reconciler Lambda picks up the change and redeploys within 5 min
-```
+Push a previous image tag to Docker Hub — the webhook triggers CodeBuild which redeploys the Lambda.
 
 ## Local dev
 
@@ -104,7 +139,7 @@ git push
 # Backend
 cd backend
 cp .env.example .env   # fill in Adzuna credentials
-docker-compose up
+docker compose up
 
 # Frontend (separate terminal)
 cd frontend
@@ -129,11 +164,9 @@ terraform/        # AWS infra as code
   scripts/        # Lambda handlers + CodeBuild buildspec
   *.tf            # resources
 
-deploy/           # GitOps config
-  config.yaml     # desired state (Argo CD source of truth)
-
 scripts/          # deployment automation
   setup-state.sh       # create S3 state bucket
+  store-secrets.sh     # store Adzuna creds in SSM Parameter Store
   deploy-backend.sh    # build + push to Docker Hub
   deploy-frontend.sh   # build + sync to S3 + CF invalidation
 ```

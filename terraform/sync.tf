@@ -60,12 +60,11 @@ resource "aws_lambda_function" "sync" {
 
   environment {
     variables = {
-      CODEBUILD_PROJECT = aws_codebuild_project.sync.name
-      DOCKER_HUB_REPO   = local.docker_hub_repo
-      ECR_REPOSITORY    = aws_ecr_repository.backend.repository_url
-      LAMBDA_FUNCTION   = aws_lambda_function.backend.function_name
-      WEBHOOK_SECRET    = var.docker_hub_webhook_secret
-      AWS_REGION        = var.aws_region
+      DOCKER_HUB_REPO = local.docker_hub_repo
+      ECR_REPOSITORY  = aws_ecr_repository.backend.repository_url
+      LAMBDA_FUNCTION = aws_lambda_function.backend.function_name
+      WEBHOOK_SECRET  = var.docker_hub_webhook_secret
+      AWS_REGION      = var.aws_region
     }
   }
 
