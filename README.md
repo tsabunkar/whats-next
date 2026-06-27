@@ -113,6 +113,14 @@ A flash-card career-discovery quiz with 3D card transitions, growing tree progre
             └─────────────────┘   └──────────────────────┘
 ```
 
+### Architecture Diagrams
+
+![High-level architecture — CloudFront → API Gateway → SQS → Worker Lambda → ECR → Backend Lambda](./whatsnext-2.png)
+
+<!-- Low-level diagram placeholder — add whatsnext-2.png for a detailed component view -->
+
+![backend-deployment](./whatsnext-1.png)
+
 ### Key Design Decisions
 
 - **No sync Lambda**: API Gateway's VTL template integrates directly with SQS via `type="AWS"`, eliminating a cold-start-prone intermediary Lambda.
@@ -140,17 +148,20 @@ A flash-card career-discovery quiz with 3D card transitions, growing tree progre
 All AWS resources are defined in `terraform/main.tf`:
 
 ### Frontend
+
 - **S3 bucket** (`whats-next-frontend-bucket`) — static file hosting
 - **CloudFront distribution** — CDN with origin access identity for S3 access
 - **S3 bucket policy** — restricts access to CloudFront only
 
 ### Backend
+
 - **ECR repository** (`whats-next-backend`) — stores container images
 - **Backend Lambda** — container-based Go function serving the API
 - **Worker Lambda** — Go function triggered by SQS, syncs Docker Hub → ECR → updates backend Lambda
 - **SQS queue** (`whats-next-webhook-sync`) — decouples webhook reception from image sync
 
 ### Webhook Pipeline
+
 - **API Gateway REST API** (REGIONAL) — webhook endpoint
 - **VTL request template** — transforms Docker Hub JSON to SQS `SendMessage` form body
 - **CloudFront distribution** — reverse proxy in front of API Gateway for Docker Hub network compatibility
@@ -272,6 +283,7 @@ aws sqs get-queue-attributes \
 Push a previous image tag to Docker Hub — the webhook triggers the sync pipeline which redeploys the backend Lambda to that tag.
 
 Alternatively, manually update the backend Lambda:
+
 ```bash
 aws lambda update-function-code \
   --function-name whats-next-backend-lambda \
