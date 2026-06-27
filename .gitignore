@@ -28,3 +28,5 @@ terraform.tfvars
 *.swo
 *~
 .DS_Store
+lambda/backend/bootstrap
+terraform/lambda_worker.zip

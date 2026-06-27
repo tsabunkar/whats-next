@@ -13,6 +13,11 @@ provider "aws" {
 
 data "aws_caller_identity" "current" {}
 
+data "aws_acm_certificate" "frontend" {
+  domain   = "*.tsabunkar.com"
+  statuses = ["ISSUED"]
+}
+
 # S3 bucket for frontend hosting
 resource "aws_s3_bucket" "frontend" {
   bucket = var.frontend_bucket_name
@@ -40,6 +45,8 @@ resource "aws_cloudfront_distribution" "frontend" {
   is_ipv6_enabled     = true
   default_root_object = "index.html"
 
+  aliases = ["whats-next.tsabunkar.com"]
+
   default_cache_behavior {
     allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods         = ["GET", "HEAD"]
@@ -62,10 +69,15 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    acm_certificate_arn      = data.aws_acm_certificate.frontend.arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 
-  depends_on = [aws_s3_bucket.frontend]
+  depends_on = [
+    aws_s3_bucket.frontend,
+    data.aws_acm_certificate.frontend,
+  ]
 }
 
 # CloudFront origin access identity
@@ -186,6 +198,13 @@ resource "aws_iam_role_policy" "lambda" {
           "sqs:GetQueueAttributes"
         ]
         Resource = aws_sqs_queue.webhook_sync.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter"
+        ]
+        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/whats-next/adzuna/*"
       }
     ]
   })
@@ -289,6 +308,29 @@ resource "aws_lambda_function" "backend" {
   lifecycle {
     ignore_changes = [image_uri]
   }
+}
+
+# Lambda Function URL for public API access
+resource "aws_lambda_function_url" "backend" {
+  function_name      = aws_lambda_function.backend.function_name
+  authorization_type = "NONE"
+}
+
+# Required since October 2025: Function URLs need both lambda:InvokeFunctionUrl
+# and lambda:InvokeFunction permissions in the resource-based policy.
+resource "aws_lambda_permission" "backend_url_invoke_url" {
+  statement_id   = "FunctionURLAllowPublicAccess"
+  action         = "lambda:InvokeFunctionUrl"
+  function_name  = aws_lambda_function.backend.function_name
+  principal      = "*"
+  function_url_auth_type = "NONE"
+}
+
+resource "aws_lambda_permission" "backend_url_invoke" {
+  statement_id  = "FunctionURLInvokeAllowPublicAccess"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.backend.function_name
+  principal     = "*"
 }
 
 # Worker Lambda for heavy image sync processing (triggered by SQS)
@@ -536,4 +578,8 @@ output "webhook_cloudfront_url" {
 
 output "webhook_sqs_queue_url" {
   value = aws_sqs_queue.webhook_sync.url
+}
+
+output "backend_function_url" {
+  value = aws_lambda_function_url.backend.function_url
 }
