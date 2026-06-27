@@ -1,0 +1,11 @@
+# AWS region
+aws_region = "us-east-1"
+
+# Project name prefix
+project_name = "whats-next"
+
+# Name of the S3 bucket for frontend hosting
+frontend_bucket_name = "whats-next-frontend-bucket"
+
+# Name of the ECR repository for backend images
+backend_ecr_repository_name = "whats-next-backend"

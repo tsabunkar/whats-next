@@ -1,0 +1,11 @@
+{
+  "name": "whats-next",
+  "private": true,
+  "scripts": {
+    "deploy:frontend": "S3_BUCKET=$(cd terraform && terraform output -raw frontend_bucket_name) CF_DIST_ID=$(cd terraform && terraform output -raw frontend_cloudfront_id) bash scripts/deploy-frontend.sh",
+    "deploy:backend": "bash scripts/deploy-backend.sh",
+    "predeploy:backend-infra": "make package-lambdas",
+    "deploy:backend-infra": "cd terraform && terraform init && terraform apply -auto-approve -var=\"docker_username=$DOCKER_USERNAME\" -var=\"docker_password=$DOCKER_PASSWORD\"",
+    "check-deployment": "bash scripts/check-deployment.sh"
+  }
+}

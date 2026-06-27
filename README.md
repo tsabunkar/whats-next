@@ -75,6 +75,26 @@ A flash-card career-discovery quiz with 3D card transitions, growing tree progre
 - **Backend**: Go binary in Docker → Lambda container (via ECR) — API Gateway HTTP API
 - **Sync**: Docker Hub webhook → API Gateway → Lambda → CodeBuild → ECR → Lambda deploy
 
+## New Terraform Infrastructure
+
+We've implemented a complete Terraform infrastructure for the deployment process described above. The setup includes:
+
+1. **Frontend Infrastructure**:
+   - S3 bucket for static file hosting
+   - CloudFront CDN for content delivery
+   - CloudFront origin access identity for secure S3 access
+
+2. **Backend Infrastructure**:
+   - ECR repository for Docker images
+   - Sync Lambda function that handles Docker Hub webhooks
+   - Backend Lambda function that serves the API
+   - API Gateway for webhook endpoint
+
+3. **Security**:
+   - IAM roles and policies for Lambda functions
+   - Secure S3 bucket policies
+   - Proper API Gateway configuration
+
 ## Prerequisites
 
 - Node 16+
@@ -89,10 +109,7 @@ A flash-card career-discovery quiz with 3D card transitions, growing tree progre
 ### 1. Infrastructure
 
 ```bash
-# Create Terraform state bucket (one-time)
-./scripts/setup-state.sh
-
-# Deploy all AWS resources
+# Deploy all AWS resources using Terraform
 cd terraform
 terraform init
 terraform apply
@@ -100,8 +117,18 @@ terraform apply
 # Note these outputs for later use
 terraform output frontend_bucket_name
 terraform output frontend_cloudfront_id
-terraform output sync_webhook_url
+terraform output webhook_url
 ```
+
+### 2. Build Lambda Functions
+
+```bash
+# Build and package Lambda functions
+make build-lambdas
+make package-lambdas
+```
+
+Note: You'll need to manually upload the packaged Lambda functions (`lambda_sync.zip` and `lambda_backend.zip`) to AWS before the first deployment, or use the `lambda_function_filename` and `source_code_hash` attributes in the Terraform configuration.
 
 ### 2. Store secrets
 
@@ -115,19 +142,31 @@ Configure a webhook in Docker Hub repository `tsabunkar/whats-next-backend` poin
 
 ## Deploy
 
+The deployment process is now fully automated:
+
 ### Backend
 
 ```bash
-./scripts/deploy-backend.sh v1.2.3
+npm run deploy:backend
 ```
 
-This builds the Docker image and pushes to Docker Hub. The Docker Hub webhook automatically triggers CodeBuild to sync the image to ECR and update the Lambda.
+This builds the Docker image and pushes to Docker Hub. The Docker Hub webhook automatically triggers the sync Lambda to sync the image to ECR and update the backend Lambda.
 
 ### Frontend
 
 ```bash
-./scripts/deploy-frontend.sh <s3-bucket> <cf-dist-id>
+npm run deploy:frontend
 ```
+
+This automatically gets the required Terraform outputs, builds the frontend, syncs to S3, and creates a CloudFront invalidation.
+
+### Check Deployment Status
+
+```bash
+./scripts/check-deployment.sh
+```
+
+This shows the CloudFront domain, webhook URL, and ECR repository URL.
 
 ### Rollback
 

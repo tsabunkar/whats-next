@@ -1,52 +1,37 @@
 variable "aws_region" {
-  description = "AWS region to deploy into"
+  description = "AWS region"
   type        = string
   default     = "us-east-1"
 }
 
-variable "environment" {
-  description = "Deployment environment (e.g. prod, staging)"
+variable "project_name" {
+  description = "Project name prefix"
   type        = string
-  default     = "prod"
+  default     = "whats-next"
 }
 
-variable "domain_name" {
-  description = "Custom domain for CloudFront (optional)"
+variable "frontend_bucket_name" {
+  description = "Name of the S3 bucket for frontend hosting"
+  type        = string
+  default     = "whats-next-frontend-bucket"
+}
+
+variable "backend_ecr_repository_name" {
+  description = "Name of the ECR repository for backend images"
+  type        = string
+  default     = "whats-next-backend"
+}
+
+variable "docker_username" {
+  description = "Docker Hub username for pulling images (optional for public repos)"
   type        = string
   default     = ""
-}
-
-variable "acm_certificate_arn" {
-  description = "ACM certificate ARN for CloudFront custom domain"
-  type        = string
-  default     = ""
-}
-
-variable "image_tag" {
-  description = "Docker image tag to deploy (from Docker Hub / ECR)"
-  type        = string
-  default     = "latest"
-}
-
-variable "adzuna_app_id" {
-  description = "Adzuna API App ID (optional — fetched from SSM Parameter Store at runtime)"
-  type        = string
   sensitive   = true
-  default     = ""
 }
 
-variable "adzuna_app_key" {
-  description = "Adzuna API App Key (optional — fetched from SSM Parameter Store at runtime)"
+variable "docker_password" {
+  description = "Docker Hub password or token for pulling images (optional for public repos)"
   type        = string
-  sensitive   = true
   default     = ""
-}
-
-variable "docker_hub_webhook_secret" {
-  description = "Secret for Docker Hub webhook authentication"
-  type        = string
   sensitive   = true
-  default     = ""
 }
-
-
