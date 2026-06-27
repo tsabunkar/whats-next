@@ -35,6 +35,11 @@ func handler(ctx context.Context, event events.SQSEvent) error {
 
 		log.Printf("Processing sync for repo: %s, tag: %s", payload.RepoName, payload.Tag)
 
+		if payload.RepoName != "tsabunkar/whats-next-backend" {
+			log.Println("Not our repository, ignoring")
+			continue
+		}
+
 		cfg, err := config.LoadDefaultConfig(ctx)
 		if err != nil {
 			log.Printf("Error loading AWS config: %v", err)
