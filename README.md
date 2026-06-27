@@ -116,7 +116,21 @@ A flash-card career-discovery quiz with 3D card transitions, growing tree progre
 ### Key Design Decisions
 
 - **No sync Lambda**: API Gateway's VTL template integrates directly with SQS via `type="AWS"`, eliminating a cold-start-prone intermediary Lambda.
-- **CloudFront in front of API Gateway**: Docker Hub's network infrastructure can reach CloudFront but not `execute-api.amazonaws.com` directly (verified via access logs).
+- **CloudFront as reverse proxy for API Gateway**: Docker Hub's webhook failed to reach API Gateway
+  directly due to a TLS SNI handshake issue. The fix and reasoning:
+  1. **`execute-api.amazonaws.com` is multi-tenant** — AWS hosts millions of APIs on one domain.
+     The TLS handshake requires the client to send an SNI header naming your specific API ID.
+  2. **curl sends the correct SNI** — your terminal resolves the right hostname and completes
+     the handshake. Direct API Gateway calls work from your machine.
+  3. **Docker Hub's webhook client does not** — it's an older HTTP client that fails the SNI
+     handshake. It never sends an HTTP request (Docker Hub shows `Code: N/A`, meaning no HTTP
+     response was ever received).
+  4. **CloudFront provides a clean TLS endpoint** — `*.cloudfront.net` is single-tenant per
+     distribution. Docker Hub's client handshakes perfectly with CloudFront, which then forwards
+     the request to API Gateway as an internal AWS call, bypassing the public SNI requirement.
+  5. **Verified by access logs** — API Gateway logs showed zero requests from Docker Hub IPs
+     hitting the direct URL. After adding CloudFront, logs confirmed successful requests arriving
+     via the CloudFront distribution.
 - **REGIONAL endpoint**: API Gateway is set to REGIONAL (not EDGE) — CloudFront handles CDN/edge termination.
 - **Payload validation in VTL**: `repo_name` is validated in the VTL template; non-matching repos are still sent to SQS as lightweight messages so the worker can log and skip them.
 - **Worker Lambda does heavy lifting**: Pulls Docker image via `go-containerregistry`, pushes to ECR, then updates the backend Lambda — all in one function with 5-minute timeout.
