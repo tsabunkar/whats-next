@@ -4,96 +4,143 @@ A flash-card career-discovery quiz with 3D card transitions, growing tree progre
 
 ## Architecture
 
-```
-┌──────────────┐   ┌──────────────────────┐   ┌──────────────┐
-│  S3 + CF     │   │  Lambda (Go)         │   │  Docker Hub  │
-│  Frontend    │◄──│  API Gateway HTTP API │◄──│  (source)    │
-│  (React SPA) │   │  Container Image     │   │              │
-└──────────────┘   └──────────┬───────────┘   └──────┬───────┘
-                              │                       │
-                              │                webhook│
-                              │                       ▼
-                              │              ┌──────────────┐
-                              │              │ API Gateway  │
-                              │              │ + Lambda     │
-                              │              │ (sync)       │
-                              │              └──────┬───────┘
-                              │                     │
-                              │                     │
-                              ▼                     ▼
-                        ┌──────────────────────────────┐
-                        │        ECR Repository        │
-                        └──────────────────────────────┘
-```
-
-### Latest Deployment Strategy not directly from local to ECR rather dockerhub -> sync lambda -> ECR -> career-match lambda
+### High-Level
 
 ```
-                     ┌─────────────────────────┐
-                     │  Developer              │
-                     │  ./scripts/deploy-*.sh  │
-                     └────┬──────────┬─────────┘
-                          │          │
-               ┌──────────┘          └──────────┐
-               ▼                                  ▼
-     ┌─────────────────┐              ┌──────────────────────┐
-     │  Frontend       │              │  Backend             │
-     │  npm run build  │              │  docker build        │
-     │  dist/          │              │  docker push         │
-     └────────┬────────┘              │  → Docker Hub        │
-              │                       └──────────┬───────────┘
-              ▼                                  │ webhook
-     ┌─────────────────┐                         ▼
-     │  aws s3 sync    │              ┌──────────────────────┐
-     │  dist/ → S3     │              │  API Gateway        │
-     └────────┬────────┘              │  POST /webhook      │
-              │                       └──────────┬───────────┘
-              ▼                                  │
-     ┌─────────────────┐                         ▼
-     │  CloudFront     │              ┌──────────────────────┐
-     │  invalidation   │              │  Sync Lambda         │
-     │  /*             │              │                      │
-     └─────────────────┘              │  1. Auth with        │
-                                      │     Docker Hub       │
-                                      │  2. Download manifest│
-                                      │  3. Download layers  │
-                                      │  4. Upload to ECR    │
-                                      │  5. Push manifest    │
-                                      │  6. Update Lambda    │
-                                      └──────────┬───────────┘
-                                                 │
-                                     ┌───────────┴───────────┐
-                                     ▼                       ▼
-                           ┌─────────────────┐     ┌─────────────────┐
-                           │  ECR            │     │  Lambda (Go)    │
-                           │  Container      │────►│  API Gateway    │
-                           │  Image          │     │  Career Match   │
-                           └─────────────────┘     └─────────────────┘
+┌──────────────────────────┐     ┌───────────────────────────────┐
+│  Developer                │     │  Docker Hub                   │
+│  ./scripts/deploy-*.sh    │────►│  tsabunkar/whats-next-backend │
+└────────┬────────┬─────────┘     └───────────────┬───────────────┘
+         │        │                               │ webhook
+         │        │                               ▼
+         │        │                      ┌──────────────────┐
+         │        │                      │  CloudFront      │
+         │        │                      │  (webhook)       │
+         │        │                      └────────┬─────────┘
+         │        │                               │
+         │        │                               ▼
+         │        │                      ┌──────────────────┐
+         │        │                      │  API Gateway     │
+         │        │                      │  (REGIONAL)      │
+         │        │                      │  POST /webhook   │
+         │        │                      └────────┬─────────┘
+         │        │                               │ VTL template
+         │        │                               ▼
+         │        │                      ┌──────────────────┐
+         │        │                      │  SQS             │
+         │        │                      │  webhook-sync    │
+         │        │                      └────────┬─────────┘
+         │        │                               │ event source
+         │        │                               ▼
+         │        │                      ┌──────────────────┐
+         │        │                      │  Worker Lambda   │
+         │        │                      │  (Go)            │
+         │        │                      └────────┬─────────┘
+         │        │                               │
+         ▼        ▼                               ▼
+┌──────────────────┐                     ┌──────────────────┐
+│  S3 + CloudFront │                     │  ECR Repository  │
+│  Frontend (SPA)  │                     └────────┬─────────┘
+└──────────────────┘                              │
+                                                  ▼
+                                        ┌──────────────────┐
+                                        │  Backend Lambda  │
+                                        │  (Container)     │
+                                        └──────────────────┘
 ```
 
-- **Frontend**: React SPA (Vite, TypeScript, Tailwind, framer-motion) — static files in S3 + CloudFront
-- **Backend**: Go binary in Docker → Lambda container (via ECR) — API Gateway HTTP API
-- **Sync**: Docker Hub webhook → API Gateway → Lambda → CodeBuild → ECR → Lambda deploy
+### Low-Level
 
-## New Terraform Infrastructure
+```
+                              ┌──────────────────────────────┐
+                              │  CloudFront (webhook)        │
+                              │  d129g49hz04mtl.cloudfront.  │
+                              │  net/webhook                  │
+                              │  Origin: API Gateway /prod    │
+                              │  Forwards: Content-Type,      │
+                              │  Content-Length, User-Agent  │
+                              └──────────────┬───────────────┘
+                                             │
+                                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  API Gateway REST API (REGIONAL)                                │
+│  POST /webhook → aws_api_gateway_integration.type = "AWS"       │
+│                                                                  │
+│  VTL Request Template:                                           │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ #set($repoName = $input.path('$.repository.repo_name')) │    │
+│  │ #set($tag = $input.path('$.push_data.tag'))             │    │
+│  │ #if ($tag == '')                                        │    │
+│  │ #set($tag = 'latest')                                   │    │
+│  │ #end                                                     │    │
+│  │ Action=SendMessage&MessageBody=                          │    │
+│  │   $util.urlEncode("{""repo_name"":""$repoName"",        │    │
+│  │     ""tag"":""$tag""}")                                  │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  Response: 202 {"status":"accepted"}                             │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │ sqs:SendMessage
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  SQS Queue (whats-next-webhook-sync)                            │
+│  - Visibility timeout: 300s                                     │
+│  - Message retention: 86400s (1 day)                            │
+│  - Receive wait time: 20s (long polling)                        │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │ SQS event source mapping (batch_size=1)
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Worker Lambda (whats-next-sync-worker)                         │
+│  - Runtime: provided.al2 (Go)                                   │
+│  - Timeout: 300s, Memory: 512MB                                 │
+│  - Env: ECR_REPOSITORY_URI, TARGET_LAMBDA_NAME,                 │
+│         DOCKER_USERNAME, DOCKER_PASSWORD                        │
+│                                                                  │
+│  Flow:                                                           │
+│  1. Parse SQS message body as SyncPayload                        │
+│  2. Validate repo_name == "tsabunkar/whats-next-backend"         │
+│  3. Pull image from Docker Hub                                   │
+│  4. Push image to ECR with same tag                              │
+│  5. Update backend Lambda function code to new image URI         │
+└──────────────────────┬───────────┬──────────────────────────────┘
+                       │           │
+                       ▼           ▼
+            ┌─────────────────┐   ┌──────────────────────┐
+            │  ECR Repository │   │  Backend Lambda      │
+            │  whats-next-    │   │  whats-next-backend-  │
+            │  backend        │   │  lambda (container)   │
+            └─────────────────┘   └──────────────────────┘
+```
 
-We've implemented a complete Terraform infrastructure for the deployment process described above. The setup includes:
+### Key Design Decisions
 
-1. **Frontend Infrastructure**:
-   - S3 bucket for static file hosting
-   - CloudFront CDN for content delivery
-   - CloudFront origin access identity for secure S3 access
+- **No sync Lambda**: API Gateway's VTL template integrates directly with SQS via `type="AWS"`, eliminating a cold-start-prone intermediary Lambda.
+- **CloudFront in front of API Gateway**: Docker Hub's network infrastructure can reach CloudFront but not `execute-api.amazonaws.com` directly (verified via access logs).
+- **REGIONAL endpoint**: API Gateway is set to REGIONAL (not EDGE) — CloudFront handles CDN/edge termination.
+- **Payload validation in VTL**: `repo_name` is validated in the VTL template; non-matching repos are still sent to SQS as lightweight messages so the worker can log and skip them.
+- **Worker Lambda does heavy lifting**: Pulls Docker image via `go-containerregistry`, pushes to ECR, then updates the backend Lambda — all in one function with 5-minute timeout.
 
-2. **Backend Infrastructure**:
-   - ECR repository for Docker images
-   - Sync Lambda function that handles Docker Hub webhooks
-   - Backend Lambda function that serves the API
-   - API Gateway for webhook endpoint
+## Infrastructure (Terraform)
 
-3. **Security**:
-   - IAM roles and policies for Lambda functions
-   - Secure S3 bucket policies
-   - Proper API Gateway configuration
+All AWS resources are defined in `terraform/main.tf`:
+
+### Frontend
+- **S3 bucket** (`whats-next-frontend-bucket`) — static file hosting
+- **CloudFront distribution** — CDN with origin access identity for S3 access
+- **S3 bucket policy** — restricts access to CloudFront only
+
+### Backend
+- **ECR repository** (`whats-next-backend`) — stores container images
+- **Backend Lambda** — container-based Go function serving the API
+- **Worker Lambda** — Go function triggered by SQS, syncs Docker Hub → ECR → updates backend Lambda
+- **SQS queue** (`whats-next-webhook-sync`) — decouples webhook reception from image sync
+
+### Webhook Pipeline
+- **API Gateway REST API** (REGIONAL) — webhook endpoint
+- **VTL request template** — transforms Docker Hub JSON to SQS `SendMessage` form body
+- **CloudFront distribution** — reverse proxy in front of API Gateway for Docker Hub network compatibility
+- **IAM roles** — `api-gateway-sqs` (SendMessage), `lambda` (ReceiveMessage/DeleteMessage + ECR + Lambda update)
 
 ## Prerequisites
 
@@ -117,7 +164,7 @@ terraform apply
 # Note these outputs for later use
 terraform output frontend_bucket_name
 terraform output frontend_cloudfront_id
-terraform output webhook_url
+terraform output webhook_cloudfront_url
 ```
 
 ### 2. Build Lambda Functions
@@ -126,39 +173,65 @@ terraform output webhook_url
 # Build and package Lambda functions
 make build-lambdas
 make package-lambdas
+
+# The zip files are created in terraform/:
+#   lambda_worker.zip   → whats-next-sync-worker
+#   lambda_backend.zip  → (placeholder; actual image comes via ECR)
 ```
 
-Note: You'll need to manually upload the packaged Lambda functions (`lambda_sync.zip` and `lambda_backend.zip`) to AWS before the first deployment, or use the `lambda_function_filename` and `source_code_hash` attributes in the Terraform configuration.
+Terraform's `filebase64sha256` on the zip triggers a Lambda update when the binary changes.
 
-### 2. Store secrets
+### 3. Store secrets
 
 ```bash
-./scripts/store-secrets.sh
+# Store Docker Hub credentials (used by Worker Lambda)
+aws ssm put-parameter --name /whats-next/docker-username --value "<your-username>" --type SecureString
+aws ssm put-parameter --name /whats-next/docker-password --value "<your-password>" --type SecureString
 ```
 
-### 3. Docker Hub webhook
+Or update the Terraform variables `docker_username` / `docker_password` directly before `terraform apply`.
 
-Configure a webhook in Docker Hub repository `tsabunkar/whats-next-backend` pointing to the `sync_webhook_url` output.
+### 4. Configure Docker Hub webhook
+
+1. Go to Docker Hub → `tsabunkar/whats-next-backend` → Webhooks
+2. Add a webhook with URL: `https://d129g49hz04mtl.cloudfront.net/webhook`
+   (replace with your `webhook_cloudfront_url` output)
 
 ## Deploy
-
-The deployment process is now fully automated:
 
 ### Backend
 
 ```bash
-npm run deploy:backend
+./scripts/deploy-backend.sh
 ```
 
-This builds the Docker image and pushes to Docker Hub. The Docker Hub webhook automatically triggers the sync Lambda to sync the image to ECR and update the backend Lambda.
+This builds the Docker image with tag `v2` and pushes to Docker Hub. The webhook automatically triggers the sync pipeline.
+
+#### Incrementing tags
+
+Edit `scripts/deploy-backend.sh` to change the tag, or run manually:
+
+```bash
+cd backend
+docker build -t tsabunkar/whats-next-backend:v3 .   # increment tag
+docker push tsabunkar/whats-next-backend:v3
+```
+
+The Worker Lambda pulls the new tag from Docker Hub and deploys it to ECR and the backend Lambda.
+
+**Recommended tag scheme**: use semantic versioning: `v1.0.0`, `v1.1.0`, `v2.0.0`, etc. Each push to Docker Hub triggers the sync for that exact tag.
+
+**To roll back**: push a previous tag (e.g. `v1.0.0`) again — the webhook syncs and redeploys that version.
 
 ### Frontend
 
 ```bash
-npm run deploy:frontend
+export S3_BUCKET=$(cd terraform && terraform output -raw frontend_bucket_name)
+export CF_DIST_ID=$(cd terraform && terraform output -raw frontend_cloudfront_id)
+./scripts/deploy-frontend.sh
 ```
 
-This automatically gets the required Terraform outputs, builds the frontend, syncs to S3, and creates a CloudFront invalidation.
+This builds the React SPA, syncs to S3, and creates a CloudFront invalidation.
 
 ### Check Deployment Status
 
@@ -166,11 +239,30 @@ This automatically gets the required Terraform outputs, builds the frontend, syn
 ./scripts/check-deployment.sh
 ```
 
-This shows the CloudFront domain, webhook URL, and ECR repository URL.
+Shows the CloudFront domain, webhook URL, and ECR repository URL.
 
-### Rollback
+### Monitor Sync
 
-Push a previous image tag to Docker Hub — the webhook triggers CodeBuild which redeploys the Lambda.
+```bash
+# Watch Worker Lambda logs in real-time
+aws logs tail /aws/lambda/whats-next-sync-worker --follow
+
+# Check SQS queue depth
+aws sqs get-queue-attributes \
+  --queue-url $(cd terraform && terraform output -raw webhook_sqs_queue_url) \
+  --attribute-names ApproximateNumberOfMessages
+```
+
+## Rollback
+
+Push a previous image tag to Docker Hub — the webhook triggers the sync pipeline which redeploys the backend Lambda to that tag.
+
+Alternatively, manually update the backend Lambda:
+```bash
+aws lambda update-function-code \
+  --function-name whats-next-backend-lambda \
+  --image-uri 494039644227.dkr.ecr.us-east-1.amazonaws.com/whats-next-backend:<tag>
+```
 
 ## Local dev
 
@@ -199,13 +291,15 @@ frontend/         # React SPA
   src/components/ # GrowingTree, etc.
   src/store/      # Zustand quest store
 
+lambda/           # Lambda function code
+  worker/         # Go — image sync (Docker Hub → ECR → Lambda)
+  backend/        # Go — API server container image
+
 terraform/        # AWS infra as code
-  scripts/        # Lambda handlers + CodeBuild buildspec
-  *.tf            # resources
+  *.tf            # all resources (main.tf, variables.tf)
 
 scripts/          # deployment automation
-  setup-state.sh       # create S3 state bucket
-  store-secrets.sh     # store Adzuna creds in SSM Parameter Store
-  deploy-backend.sh    # build + push to Docker Hub
-  deploy-frontend.sh   # build + sync to S3 + CF invalidation
+  deploy-backend.sh     # build + push to Docker Hub
+  deploy-frontend.sh    # build + sync to S3 + CF invalidation
+  check-deployment.sh   # show current URLs and statuses
 ```
